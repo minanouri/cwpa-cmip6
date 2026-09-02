@@ -65,9 +65,8 @@ def prepare_spatial_data(da: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
     return data, coordinates
 
 
-def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: int = 10, 
-               max_iter: int = 1000, tol: float = 1e-5, random_state: int = 4, 
-               coordinates: pd.DataFrame | None = None) -> tuple[KMeans, np.ndarray | pd.DataFrame]:
+def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: int = 10, max_iter: int = 1000, 
+               tol: float = 1e-5, random_state: int = 4) -> tuple[KMeans, np.ndarray]:
 
     model = KMeans(n_clusters=n_clusters, 
                    init=init, 
@@ -79,13 +78,7 @@ def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: 
 
     labels = model.fit_predict(data)
 
-    if coordinates is None:
-        return model, labels
-    
-    result = coordinates.copy()
-    result['cluster'] = labels
-
-    return model, result
+    return model, labels
 
 
 def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = 'random', 
@@ -96,6 +89,7 @@ def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = '
     for n_clusters in cluster_range:
         model, _ = fit_kmeans(data, n_clusters, init=init, n_init=n_init,
                               max_iter=max_iter, tol=tol, random_state=random_state)
+
         wcss.append(model.inertia_)
 
     return wcss
