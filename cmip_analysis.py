@@ -56,22 +56,30 @@ def prepare_spatial_data(da: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
 
     stacked = da.stack(grid=['lat', 'lon'])
 
-    coords = np.column_stack((stacked['lat'].values, stacked['lon'].values))
-    coords[:, 1] = np.where(coords[:, 1] > 180, coords[:, 1] - 360, coords[:, 1])
+    coordinates = np.column_stack((stacked['lat'].values, stacked['lon'].values))
+    coordinates[:, 1] = np.where(coordinates[:, 1] > 180, coordinates[:, 1] - 360, coordinates[:, 1])
 
-    coords_df = pd.DataFrame(coords, columns=['lat', 'lon']).reset_index()
+    coordinates = pd.DataFrame(coordinates, columns=['lat', 'lon']).reset_index(drop=True)
     data = stacked.values.T
 
-    return data, coords_df
+    return data, coordinates
 
 
-def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: int = 10, 
+def fit_kmeans(data: np.ndarray, coordinates: pd.DataFrame, n_clusters: int, init: str = 'random', n_init: int = 10, 
                max_iter: int = 1000, tol: float = 1e-5, random_state: int = 4) -> tuple[KMeans, np.ndarray]:
 
-    model = KMeans(n_clusters=n_clusters, init=init, n_init=n_init, 
-                   max_iter=max_iter, tol=tol, random_state=random_state)
+    model = KMeans(n_clusters=n_clusters, 
+                   init=init, 
+                   n_init=n_init, 
+                   max_iter=max_iter, 
+                   tol=tol, 
+                   random_state=random_state
+                   )
     labels = model.fit_predict(data)
-    return model, labels
+
+    result = pd.DataFrame({'lat': coordinates['lat'], 'lon': coordinates['lon'], 'cluster': labels})
+
+    return model, result
 
 
 def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = 'random', n_init: int = 10,
