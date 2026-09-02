@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
+from sklearn.cluster import KMeans
+from collections.abc import Iterable
 
 
 def reshape_by_year(ds: xr.Dataset, start_year: int, end_year: int) -> xr.Dataset:
@@ -48,18 +50,38 @@ def calculate_warming_slopes(quantiles: xr.DataArray) -> xr.DataArray:
     return s_xy / s_xx
 
 
-def prepare_spatial_data(slopes: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
-    if 'lat' not in slopes.coords or 'lon' not in slopes.coords:
+def prepare_spatial_data(da: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
+    if 'lat' not in da.coords or 'lon' not in da.coords:
         raise ValueError("DataArray must have 'lat' and 'lon' coordinates.")
 
-    stacked = slopes.stack(grid=['lat', 'lon'])
+    stacked = da.stack(grid=['lat', 'lon'])
 
     coords = np.column_stack((stacked['lat'].values, stacked['lon'].values))
     coords[:, 1] = np.where(coords[:, 1] > 180, coords[:, 1] - 360, coords[:, 1])
 
     coords_df = pd.DataFrame(coords, columns=['lat', 'lon']).reset_index()
-    all_slopes = stacked.values.T
+    data = stacked.values.T
 
-    return all_slopes, coords_df
+    return data, coords_df
 
-    
+
+def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: int = 10, 
+               max_iter: int = 1000, tol: float = 1e-5, random_state: int = 4) -> tuple[KMeans, np.ndarray]:
+
+    model = KMeans(n_clusters=n_clusters, init=init, n_init=n_init, 
+                   max_iter=max_iter, tol=tol, random_state=random_state)
+    labels = model.fit_predict(data)
+    return model, labels
+
+
+def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = 'random', n_init: int = 10,
+                   max_iter: int = 1000, tol: float = 1e-5, random_state: int = 0) -> list[float]:
+    """Calculate within-cluster sum of squares for a range of cluster counts."""
+    wcss = []
+
+    for n_clusters in cluster_range:
+        model, _ = fit_kmeans(data, n_clusters, init=init, n_init=n_init,
+                              max_iter=max_iter, tol=tol, random_state=random_state)
+        wcss.append(model.inertia_)
+
+    return wcss
