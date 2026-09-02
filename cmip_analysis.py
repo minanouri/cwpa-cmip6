@@ -93,3 +93,23 @@ def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = '
         wcss.append(model.inertia_)
 
     return wcss
+
+
+def calculate_cluster_areas(slopes: xr.DataArray, coordinates: pd.DataFrame, labels: np.ndarray,
+                            n_clusters: int) -> list[float]:
+
+    lon_width = float(slopes.lon[1] - slopes.lon[0])
+    lat_half_width = float(slopes.lat[1] - slopes.lat[0]) / 2
+
+    areas = [0.0] * n_clusters
+
+    for cluster in range(n_clusters):
+        cluster_latitudes = coordinates.loc[labels == cluster, 'lat'].to_numpy()
+
+        upper = np.radians(cluster_latitudes + lat_half_width)
+        lower = np.radians(cluster_latitudes - lat_half_width)
+
+        areas[cluster] = float(np.sum((lon_width / 360) * (np.sin(upper) - np.sin(lower))))
+
+    return areas
+
