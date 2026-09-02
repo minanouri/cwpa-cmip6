@@ -65,8 +65,9 @@ def prepare_spatial_data(da: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
     return data, coordinates
 
 
-def fit_kmeans(data: np.ndarray, coordinates: pd.DataFrame, n_clusters: int, init: str = 'random', n_init: int = 10, 
-               max_iter: int = 1000, tol: float = 1e-5, random_state: int = 4) -> tuple[KMeans, np.ndarray]:
+def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: int = 10, 
+               max_iter: int = 1000, tol: float = 1e-5, random_state: int = 4, 
+               coordinates: pd.DataFrame | None = None) -> tuple[KMeans, np.ndarray | pd.DataFrame]:
 
     model = KMeans(n_clusters=n_clusters, 
                    init=init, 
@@ -75,16 +76,21 @@ def fit_kmeans(data: np.ndarray, coordinates: pd.DataFrame, n_clusters: int, ini
                    tol=tol, 
                    random_state=random_state
                    )
+
     labels = model.fit_predict(data)
 
-    result = pd.DataFrame({'lat': coordinates['lat'], 'lon': coordinates['lon'], 'cluster': labels})
+    if coordinates is None:
+        return model, labels
+    
+    result = coordinates.copy()
+    result['cluster'] = labels
 
     return model, result
 
 
-def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = 'random', n_init: int = 10,
-                   max_iter: int = 1000, tol: float = 1e-5, random_state: int = 0) -> list[float]:
-    """Calculate within-cluster sum of squares for a range of cluster counts."""
+def calculate_wcss(data: np.ndarray, cluster_range: Iterable[int], init: str = 'random', 
+                   n_init: int = 10, max_iter: int = 1000, tol: float = 1e-5, 
+                   random_state: int = 0) -> list[float]:
     wcss = []
 
     for n_clusters in cluster_range:
