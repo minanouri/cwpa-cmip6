@@ -32,17 +32,34 @@ def calculate_quantiles(da: xr.DataArray, n_quantiles: int = 101) -> xr.DataArra
     return da.quantile(q=q, dim='time')
 
 
-def calculate_warming_slopes(da: xr.DataArray) -> xr.DataArray:
-    if 'year' not in da.coords:
+def calculate_warming_slopes(quantiles: xr.DataArray) -> xr.DataArray:
+    if 'year' not in quantiles.coords:
         raise ValueError("DataArray must have a 'year' coordinate.")
 
-    years = da.year
+    years = quantiles.year
 
     x_mean = years.mean()
-    y_mean = da.mean(dim='year')
-    n_years = da.sizes['year']
+    y_mean = quantiles.mean(dim='year')
+    n_years = quantiles.sizes['year']
 
     s_xx = (years * years).sum() - n_years * x_mean ** 2
-    s_xy = da.dot(years) - n_years * x_mean * y_mean
+    s_xy = quantiles.dot(years) - n_years * x_mean * y_mean
 
     return s_xy / s_xx
+
+
+def prepare_spatial_data(slopes: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
+    if 'lat' not in slopes.coords or 'lon' not in slopes.coords:
+        raise ValueError("DataArray must have 'lat' and 'lon' coordinates.")
+
+    stacked = slopes.stack(grid=['lat', 'lon'])
+
+    coords = np.column_stack((stacked['lat'].values, stacked['lon'].values))
+    coords[:, 1] = np.where(coords[:, 1] > 180, coords[:, 1] - 360, coords[:, 1])
+
+    coords_df = pd.DataFrame(coords, columns=['lat', 'lon']).reset_index()
+    all_slopes = stacked.values.T
+
+    return all_slopes, coords_df
+
+    
