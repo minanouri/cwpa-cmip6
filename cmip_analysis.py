@@ -51,18 +51,33 @@ def calculate_warming_slopes(quantiles: xr.DataArray) -> xr.DataArray:
     return s_xy / s_xx
 
 
-def prepare_spatial_data(da: xr.DataArray) -> tuple[np.ndarray, pd.DataFrame]:
-    if 'lat' not in da.coords or 'lon' not in da.coords:
+def prepare_spatial_data(slopes: xr.DataArray, lat_block_size: int = 20) -> tuple[np.ndarray, pd.DataFrame]:
+    if 'lat' not in slopes.coords or 'lon' not in slopes.coords:
         raise ValueError("DataArray must have 'lat' and 'lon' coordinates.")
 
-    stacked = da.stack(grid=['lat', 'lon'])
+    n_lat = slopes.sizes['lat']
+    n_lon = slopes.sizes['lon']
+    n_quantiles = slopes.sizes['quantile']
 
-    coordinates = pd.DataFrame({'lat': stacked['lat'].values, 'lon': stacked['lon'].values,})
+    slope_values = np.empty((n_lat * n_lon, n_quantiles), dtype=np.float32)
+
+    coordinates = pd.DataFrame({'lat': np.repeat(slopes.lat.values, n_lon), 
+                                'lon': np.tile(slopes.lon.values, n_lat)})
     coordinates['lon'] = np.where(coordinates['lon'] > 180, coordinates['lon'] - 360, coordinates['lon'])
 
-    data = stacked.values.T
+    for start in range(0, n_lat, lat_block_size):
+        end = min(start + lat_block_size, n_lat)
 
-    return data, coordinates
+        slopes_block = slopes.isel(lat=slice(start, end)).compute()
+
+        block_values = (slopes_block.transpose('lat', 'lon', 'quantile').values.reshape(-1, n_quantiles))
+
+        start_idx = start * n_lon
+        end_idx = end * n_lon
+
+        slope_values[start_idx:end_idx] = block_values
+
+    return slope_values, coordinates
 
 
 def fit_kmeans(data: np.ndarray, n_clusters: int, init: str = 'random', n_init: int = 10, max_iter: int = 1000, 
